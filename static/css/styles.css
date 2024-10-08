@@ -1,0 +1,96 @@
+/* Estilos generales */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #e0f7fa;
+    margin: 0;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    text-align: center;
+}
+
+/* Estilo del título */
+h1 {
+    color: #0d47a1;
+    font-size: 2.5rem;
+}
+
+/* Estilos para la entrada de usuario */
+.entrada-usuario {
+    margin: 20px 0;
+}
+
+.entrada-usuario input {
+    padding: 10px;
+    font-size: 1rem;
+}
+
+.entrada-usuario button {
+    padding: 10px 20px;
+    font-size: 1rem;
+    background-color: #0d47a1;
+    color: white;
+    border: none;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+/* Estilos para la tubería y el flujo de agua */
+.tuberia {
+    width: 300px;
+    height: 40px;
+    background-color: #808080;
+    border-radius: 20px;
+    overflow: hidden;
+    margin: 20px auto;
+    box-shadow: inset 0 0 10px #000;
+}
+
+.agua {
+    height: 100%;
+    width: 0%;
+    background-color: #1e88e5;
+    border-radius: 20px;
+    transition: width 1s ease-out;
+}
+
+/* Estilos del texto del consumo */
+.texto-consumo {
+    font-size: 1.5rem;
+    margin: 20px 0;
+}
+
+.mensaje-fuga {
+    font-size: 1.2rem;
+    color: red;
+    font-weight: bold;
+}
+
+/* Semáforo */
+.semaforo {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.luz {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: grey;
+    box-shadow: 0 0 10px #000;
+    transition: background-color 0.5s;
+}
+
+.verde {
+    background-color: green;
+}
+
+.roja {
+    background-color: red;
+}

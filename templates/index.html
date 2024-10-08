@@ -1,0 +1,85 @@
+<!-- <!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consumo de Agua</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+</head>
+<body>
+    <div class="container">
+        <h1>Consumo de agua</h1> -->
+
+        <!-- Entrada para el usuario -->
+        <!-- <div class="entrada-usuario">
+            <label for="input-consumo">Ingresa el consumo en litros:</label>
+            <input type="number" id="input-consumo" name="consumo" placeholder="Ej: 35">
+            <button id="btn-calcular" type="button">Calcular</button> Quitamos el submit para evitar recarga -->
+        <!-- </div> -->
+
+        <!-- Barra de agua -->
+        <!-- <div class="tuberia">
+            <div class="agua"></div>
+        </div> -->
+
+        <!-- Texto de consumo -->
+        <!-- <p class="texto-consumo">El consumo es: <span id="consumo">0</span> litros</p> -->
+
+        <!-- Texto de fuga -->
+        <!-- <p class="mensaje-fuga" id="mensaje-fuga" style="display: none;">¡Posible fuga detectada!</p> -->
+
+        <!-- Semáforo -->
+        <!-- <div class="semaforo">
+            <div class="luz verde" id="verde" style="display: none;">Luz verde</div>
+            <div class="luz roja" id="roja" style="display: none;">Luz roja</div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consumo de Agua</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+</head>
+<body>
+    <div class="container">
+        <h1>Consumo de agua</h1>
+
+        <!-- Entrada para el usuario -->
+        <div class="entrada-usuario">
+            <label for="input-consumo">Ingresa el consumo en litros:</label>
+            <input type="number" id="input-consumo" name="consumo" placeholder="Ej: 35">
+            <button id="btn-calcular" type="button">Calcular</button> <!-- Mantener el botón como tipo 'button' -->
+        </div>
+
+        <!-- Barra de agua -->
+        <div class="tuberia">
+            <div class="agua"></div>
+        </div>
+
+        <!-- Texto de consumo -->
+        <p class="texto-consumo">El consumo es: <span id="consumo">0</span> litros</p>
+
+        <!-- Texto de fuga -->
+        <p class="mensaje-fuga" id="mensaje-fuga" style="display: none;">¡Posible fuga detectada!</p>
+
+        <!-- Semáforo -->
+        <div class="semaforo">
+            <div class="luz verde" id="verde" style="display: none;">Luz verde</div>
+            <div class="luz roja" id="roja" style="display: none;">Luz roja</div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+
