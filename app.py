@@ -30,10 +30,13 @@ def guardar_datos():
         # Conectar a la base de datos
         try:
             conexion = pymysql.connect(
-                host="ar-net.com.mx",
-                user="arnetcom",
-                password="O6r#]IYdr0x06G",
-                database="arnetcom_agua"
+                host="162.241.62.217",
+                user="arnetcom_uriel",
+                password="Uriel$2024.Agu4",
+                #user="arnetcom",
+                #password="O6r#]IYdr0x06G",
+                database="arnetcom_agua",
+                port=3306  
             )
             cursor = conexion.cursor()
         except pymysql.MySQLError as e:
