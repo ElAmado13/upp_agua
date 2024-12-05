@@ -41,21 +41,31 @@ h1 {
 
 /* Estilos para la tubería y el flujo de agua */
 .tuberia {
-    width: 300px;
-    height: 40px;
-    background-color: #808080;
-    border-radius: 20px;
+    width: 100%;
+    height: 50px;
+    background: #e0e0e0;
+    border-radius: 25px;
     overflow: hidden;
-    margin: 20px auto;
-    box-shadow: inset 0 0 10px #000;
+    position: relative;
+    margin: 20px 0;
 }
 
 .agua {
     height: 100%;
-    width: 0%;
-    background-color: #1e88e5;
-    border-radius: 20px;
-    transition: width 1s ease-out;
+    background: #4da6ff;
+    position: absolute;
+    transition: width 1s, background 0.5s;
+}
+
+.agua.desbordando {
+    background: red;
+    animation: overflow 1s infinite;
+}
+
+@keyframes overflow {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+    100% { transform: translateY(0); }
 }
 
 /* Estilos del texto del consumo */

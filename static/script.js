@@ -1,31 +1,20 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const agua = document.querySelector('.agua');
-    const consumoTexto = document.getElementById('consumo');
-    const luzVerde = document.getElementById('verde');
-    const luzRoja = document.getElementById('roja');
-    const mensajeFuga = document.getElementById('mensaje-fuga');
     const inputConsumo = document.getElementById('input-consumo');
     const btnCalcular = document.getElementById('btn-calcular');
-
-    // Datos iniciales
+    const barraAgua = document.getElementById('barra-agua');
+    const luzVerde = document.getElementById('verde');
+    const luzRoja = document.getElementById('roja');
     const datosPulsos = [2, 43, 69, 73, 74, 74, 76, 76, 77, 77, 77, 79, 79, 72, 64, 46, 3];
-    const etiquetas = Array.from({ length: datosPulsos.length }, (_, i) => `Lectura ${i + 1}`);
-
-    // Fórmula para calcular litros
-    const calcularLitros = (pulsos) => 0.0017 * pulsos;
-
-    // Calcular el consumo total en litros
-    const consumoTotal = calcularLitros(datosPulsos.reduce((acc, val) => acc + val, 0));
-
-    // Configuración de la gráfica
     const ctx = document.getElementById('grafica-consumo').getContext('2d');
+
+    // Inicializar gráfica
     const graficaConsumo = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: etiquetas,
+            labels: Array.from({ length: datosPulsos.length }, (_, i) => `Lectura ${i + 1}`),
             datasets: [{
                 label: 'Consumo de agua (litros)',
-                data: datosPulsos.map(calcularLitros), // Convertir pulsos a litros
+                data: datosPulsos.map(p => p * 0.0017),
                 borderColor: 'blue',
                 borderWidth: 2,
                 fill: false,
@@ -57,31 +46,32 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Actualización del botón Calcular
+    // Botón calcular
     btnCalcular.addEventListener('click', () => {
-        // Mostrar el consumo total en el campo de texto
-        inputConsumo.value = consumoTotal.toFixed(2); // Mostrar dos decimales
+        // Calcular litros totales con la fórmula: Litros = 1.70 * pulsos
+        const litrosTotales = datosPulsos.reduce((a, b) => a + b, 0) * 0.0017;
 
-        // Actualizar el ancho de la barra de agua
-        agua.style.width = `${(consumoTotal / 100) * 100}%`;
-        consumoTexto.textContent = consumoTotal.toFixed(2);
+        // Mostrar litros registrados
+        inputConsumo.value = litrosTotales.toFixed(2);
 
-        // Control del semáforo y mensaje de fuga
-        controlarSemaforo(consumoTotal);
-    });
+        // Actualizar barra de agua
+        const capacidadMaxima = 12;
+        const porcentaje = Math.min((litrosTotales / capacidadMaxima) * 100, 100);
+        barraAgua.style.width = `${porcentaje}%`;
 
-    // Función para controlar el semáforo y mostrar mensaje de fuga
-    function controlarSemaforo(consumo) {
-        if (consumo < 12) {
-            // Luz verde para consumos menores a 12 litros
-            luzVerde.style.backgroundColor = 'green';
-            luzRoja.style.backgroundColor = 'grey';
-            mensajeFuga.style.display = 'none';
+        if (litrosTotales > capacidadMaxima) {
+            barraAgua.classList.add('desbordando'); // Simula desbordamiento
         } else {
-            // Luz roja para consumos mayores o iguales a 12 litros
-            luzVerde.style.backgroundColor = 'grey';
-            luzRoja.style.backgroundColor = 'red';
-            mensajeFuga.style.display = 'block';
+            barraAgua.classList.remove('desbordando');
         }
-    }
+
+        // Control de semáforo
+        if (litrosTotales <= capacidadMaxima) {
+            luzVerde.style.display = 'block';
+            luzRoja.style.display = 'none';
+        } else {
+            luzVerde.style.display = 'none';
+            luzRoja.style.display = 'block';
+        }
+    });
 });
