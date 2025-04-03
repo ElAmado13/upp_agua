@@ -63,6 +63,26 @@ def guardar_datos():
         print('Error general:', str(e))
         print(traceback.format_exc())  # Imprimir rastreo completo del error
         return jsonify({'error': 'Error interno del servidor'}), 500
+@app.route('/ultimos_datos', methods=['GET'])
+def ultimos_datos():
+    try:
+        conexion = pymysql.connect(
+            host="162.241.62.217",
+            user="arnetcom_uriel",
+            password="Uriel$2024.Agu4",
+            database="arnetcom_agua",
+            port=3306  
+        )
+        cursor = conexion.cursor()
+        sql = "SELECT lectura FROM registros ORDER BY fecha DESC LIMIT 20"
+        cursor.execute(sql)
+        resultados = cursor.fetchall()
+        conexion.close()
+
+        datos = [float(r[0]) for r in resultados[::-1]]
+        return jsonify({'lecturas': datos})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

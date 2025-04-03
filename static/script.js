@@ -46,32 +46,39 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Botón calcular
-    btnCalcular.addEventListener('click', () => {
-        // Calcular litros totales con la fórmula: Litros = 1.70 * pulsos
-        const litrosTotales = datosPulsos.reduce((a, b) => a + b, 0) * 0.0017;
+    function actualizarDesdeServidor() {
+        fetch('/ultimos_datos')
+            .then(response => response.json())
+            .then(data => {
+                if (data.lecturas && data.lecturas.length > 0) {
+                    const lecturas = data.lecturas;
+                    const litrosTotales = lecturas.reduce((a, b) => a + b, 0);
+                    inputConsumo.value = litrosTotales.toFixed(2);
 
-        // Mostrar litros registrados
-        inputConsumo.value = litrosTotales.toFixed(2);
+                    const capacidadMaxima = 12;
+                    const porcentaje = Math.min((litrosTotales / capacidadMaxima) * 100, 100);
+                    barraAgua.style.width = `${porcentaje}%`;
+                    barraAgua.classList.toggle('desbordando', litrosTotales > capacidadMaxima);
 
-        // Actualizar barra de agua
-        const capacidadMaxima = 12;
-        const porcentaje = Math.min((litrosTotales / capacidadMaxima) * 100, 100);
-        barraAgua.style.width = `${porcentaje}%`;
+                    if (litrosTotales > capacidadMaxima) {
+                        luzRoja.style.display = 'block';
+                        luzVerde.style.display = 'none';
+                    } else {
+                        luzRoja.style.display = 'none';
+                        luzVerde.style.display = 'block';
+                    }
 
-        if (litrosTotales > capacidadMaxima) {
-            barraAgua.classList.add('desbordando'); // Simula desbordamiento
-        } else {
-            barraAgua.classList.remove('desbordando');
-        }
+                    graficaConsumo.data.labels = lecturas.map((_, i) => `Lectura ${i + 1}`);
+                    graficaConsumo.data.datasets[0].data = lecturas;
+                    graficaConsumo.update();
+                }
+            })
+            .catch(error => console.error('Error al obtener lecturas:', error));
+    }
 
-        // Control de semáforo
-        if (litrosTotales <= capacidadMaxima) {
-            luzVerde.style.display = 'block';
-            luzRoja.style.display = 'none';
-        } else {
-            luzVerde.style.display = 'none';
-            luzRoja.style.display = 'block';
-        }
-    });
+    // Ejecutar cada 5 segundos
+    setInterval(actualizarDesdeServidor, 5000);
+
+    // También puedes usar el botón calcular si lo deseas
+    btnCalcular.addEventListener('click', actualizarDesdeServidor);
 });
