@@ -107,3 +107,9 @@ h1 {
 .roja {
     background-color: red;
 }
+#estado-actual {
+    font-size: 1.2rem;
+    margin: 10px 0;
+    color: #003366;
+    font-weight: bold;
+}

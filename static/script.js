@@ -3,15 +3,17 @@ document.addEventListener('DOMContentLoaded', function () {
     const barraAgua = document.getElementById('barra-agua');
     const luzVerde = document.getElementById('verde');
     const luzRoja = document.getElementById('roja');
+    const estadoActual = document.getElementById('estado-actual');
     const ctx = document.getElementById('grafica-consumo').getContext('2d');
 
     let datosPulsos = [];
     let flujoActivo = false;
     let tiempoFlujo = 0;
     let timer;
-    const minutosMax = 5; // 5 minutos
+    let cerosConsecutivos = 0;
+    let ultimosDatos = [];
+    const minutosMax = 10; // 10 minutos
     const segundosMax = minutosMax * 60;
-    const capacidadMaxima = 100; // La barra ahora representa % del tiempo
 
     const graficaConsumo = new Chart(ctx, {
         type: 'line',
@@ -112,17 +114,35 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(response => response.json())
             .then(data => {
                 if (data.lecturas && data.lecturas.length > 0) {
-                    if (!flujoActivo) {
-                        flujoActivo = true;
-                        tiempoFlujo = 0;
-                        iniciarTemporizador();
+                    const nuevasLecturas = data.lecturas;
+
+                    // Verificar cambios reales
+                    if (JSON.stringify(nuevasLecturas) !== JSON.stringify(ultimosDatos)) {
+                        ultimosDatos = nuevasLecturas;
+
+                        if (!flujoActivo) {
+                            flujoActivo = true;
+                            tiempoFlujo = 0;
+                            iniciarTemporizador();
+                        }
+
+                        datosPulsos = nuevasLecturas;
+                        const litrosTotales = nuevasLecturas.reduce((a, b) => a + b, 0);
+                        inputConsumo.value = litrosTotales.toFixed(2);
+
+                        actualizarGrafica();
+
+                        // Reset ceros consecutivos
+                        cerosConsecutivos = 0;
+                    } else {
+                        // Verificar si todos los datos son ceros
+                        if (nuevasLecturas.every(v => v === 0)) {
+                            cerosConsecutivos += 1;
+                            if (cerosConsecutivos >= 10) {
+                                reiniciarTodo();
+                            }
+                        }
                     }
-                    datosPulsos = data.lecturas;
-
-                    const litrosTotales = data.lecturas.reduce((a, b) => a + b, 0);
-                    inputConsumo.value = litrosTotales.toFixed(2);
-
-                    actualizarGrafica();
                 }
             })
             .catch(error => console.error('Error al obtener lecturas:', error));
@@ -133,31 +153,50 @@ document.addEventListener('DOMContentLoaded', function () {
         timer = setInterval(() => {
             tiempoFlujo += 1;
 
-            // Avance de barra
             const porcentaje = Math.min((tiempoFlujo / segundosMax) * 100, 100);
             barraAgua.style.width = `${porcentaje}%`;
 
-            if (tiempoFlujo <= 240) { // Hasta 4 min (verde)
+            // Actualizar color de la barra
+            if (porcentaje <= 60) {
+                barraAgua.style.backgroundColor = '#4da6ff'; // Azul
+                estadoActual.textContent = "Estado: Consumo Adecuado (Azul)";
+            } else if (porcentaje > 60 && porcentaje <= 80) {
+                barraAgua.style.backgroundColor = 'orange'; // Naranja
+                estadoActual.textContent = "Estado: Atención (Naranja)";
+            } else {
+                barraAgua.style.backgroundColor = 'red'; // Rojo
+                estadoActual.textContent = "Estado: Fuga Detectada (Rojo)";
+            }
+
+            if (tiempoFlujo <= 480) { // Hasta 8 minutos (verde)
                 luzVerde.style.display = 'block';
                 luzRoja.style.display = 'none';
-            } else { // Después de 4 min (rojo)
+            } else { // Más de 8 minutos (rojo)
                 luzVerde.style.display = 'none';
                 luzRoja.style.display = 'block';
             }
 
-            if (tiempoFlujo >= segundosMax) { // Reinicio a los 5 minutos
-                flujoActivo = false;
-                clearInterval(timer);
-                datosPulsos = [];
-                inputConsumo.value = '0.00';
-                barraAgua.style.width = '0%';
-                actualizarGrafica();
-                luzVerde.style.display = 'none';
-                luzRoja.style.display = 'none';
+            if (tiempoFlujo >= segundosMax) { // Reinicio automático a 10 min
+                reiniciarTodo();
             }
         }, 1000);
     }
 
-    // Revisar cada 5 segundos si hay nuevos datos
+    function reiniciarTodo() {
+        flujoActivo = false;
+        clearInterval(timer);
+        datosPulsos = [];
+        ultimosDatos = [];
+        cerosConsecutivos = 0;
+        tiempoFlujo = 0;
+        inputConsumo.value = '0.00';
+        barraAgua.style.width = '0%';
+        barraAgua.style.backgroundColor = '#4da6ff';
+        actualizarGrafica();
+        luzVerde.style.display = 'none';
+        luzRoja.style.display = 'none';
+        estadoActual.textContent = "Estado: Sin flujo";
+    }
+
     setInterval(actualizarDesdeServidor, 5000);
 });
