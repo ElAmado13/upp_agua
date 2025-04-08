@@ -12,8 +12,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let timer;
     let cerosConsecutivos = 0;
     let ultimosDatos = [];
-    const minutosMax = 10; // 10 minutos
-    const segundosMax = minutosMax * 60;
+    const minutosMax = 5; // 5 minutos total
+    const segundosMax = minutosMax * 60; // 300 segundos
 
     const graficaConsumo = new Chart(ctx, {
         type: 'line',
@@ -34,10 +34,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     data: [],
                     borderColor: 'brown',
                     backgroundColor: 'transparent',
-                    borderDash: [5, 5],
                     borderWidth: 2,
                     fill: false,
-                    tension: 0.3
+                    tension: 0.4
                 }
             ]
         },
@@ -72,24 +71,24 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    function calcularPromediosBloques(datos) {
+    function calcularPromediosAcumuladosBloques(datos) {
         const bloqueTamano = 3;
         let promedios = [];
         let bloque = [];
         let promedioAnterior = 0;
+        let totalDatosAcumulados = 0;
 
         for (let i = 0; i < datos.length; i++) {
             bloque.push(datos[i]);
 
             if (bloque.length === bloqueTamano || i === datos.length - 1) {
-                let suma = bloque.reduce((a, b) => a + b, 0);
-                if (promedioAnterior !== 0) {
-                    suma += promedioAnterior;
-                    promedioAnterior = suma / (bloque.length + 1);
-                } else {
-                    promedioAnterior = suma / bloque.length;
-                }
-                promedios.push(promedioAnterior);
+                let sumaBloque = bloque.reduce((a, b) => a + b, 0);
+                let sumaTotal = sumaBloque + promedioAnterior;
+                totalDatosAcumulados += bloque.length + (promedioAnterior > 0 ? 1 : 0);
+                let nuevoPromedio = sumaTotal / totalDatosAcumulados;
+                promedios.push(nuevoPromedio);
+
+                promedioAnterior = nuevoPromedio;
                 bloque = [];
             }
         }
@@ -100,11 +99,22 @@ document.addEventListener('DOMContentLoaded', function () {
         graficaConsumo.data.labels = datosPulsos.map((_, i) => i + 1);
         graficaConsumo.data.datasets[0].data = datosPulsos;
 
-        const promedios = calcularPromediosBloques(datosPulsos);
-        graficaConsumo.data.datasets[1].data = Array.from({ length: datosPulsos.length }, (_, i) => {
-            const bloqueIndex = Math.floor(i / 3);
-            return promedios[bloqueIndex] || null;
-        });
+        const promedios = calcularPromediosAcumuladosBloques(datosPulsos);
+
+        // Expandir los promedios para unir los puntos
+        let datosPromedioExpandido = [];
+        let indiceBloque = 0;
+
+        for (let i = 0; i < datosPulsos.length; i++) {
+            if (i % 3 === 0 && indiceBloque < promedios.length) {
+                datosPromedioExpandido.push(promedios[indiceBloque]);
+                indiceBloque++;
+            } else {
+                datosPromedioExpandido.push(null);
+            }
+        }
+
+        graficaConsumo.data.datasets[1].data = datosPromedioExpandido;
 
         graficaConsumo.update();
     }
@@ -113,12 +123,20 @@ document.addEventListener('DOMContentLoaded', function () {
         fetch('/ultimos_datos')
             .then(response => response.json())
             .then(data => {
-                if (data.lecturas && data.lecturas.length > 0) {
+                if (data.lecturas) {
                     const nuevasLecturas = data.lecturas;
 
-                    // Verificar cambios reales
+                    if (nuevasLecturas.every(v => v === 0)) {
+                        cerosConsecutivos++;
+                        if (cerosConsecutivos >= 10) {
+                            reiniciarTodo();
+                        }
+                        return; // No actualiza datos si solo recibe ceros
+                    }
+
                     if (JSON.stringify(nuevasLecturas) !== JSON.stringify(ultimosDatos)) {
                         ultimosDatos = nuevasLecturas;
+                        cerosConsecutivos = 0;
 
                         if (!flujoActivo) {
                             flujoActivo = true;
@@ -131,17 +149,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         inputConsumo.value = litrosTotales.toFixed(2);
 
                         actualizarGrafica();
-
-                        // Reset ceros consecutivos
-                        cerosConsecutivos = 0;
-                    } else {
-                        // Verificar si todos los datos son ceros
-                        if (nuevasLecturas.every(v => v === 0)) {
-                            cerosConsecutivos += 1;
-                            if (cerosConsecutivos >= 10) {
-                                reiniciarTodo();
-                            }
-                        }
                     }
                 }
             })
@@ -156,7 +163,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const porcentaje = Math.min((tiempoFlujo / segundosMax) * 100, 100);
             barraAgua.style.width = `${porcentaje}%`;
 
-            // Actualizar color de la barra
             if (porcentaje <= 60) {
                 barraAgua.style.backgroundColor = '#4da6ff'; // Azul
                 estadoActual.textContent = "Estado: Consumo Adecuado (Azul)";
@@ -168,15 +174,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 estadoActual.textContent = "Estado: Fuga Detectada (Rojo)";
             }
 
-            if (tiempoFlujo <= 480) { // Hasta 8 minutos (verde)
+            if (tiempoFlujo <= 240) { // 4 minutos (verde)
                 luzVerde.style.display = 'block';
                 luzRoja.style.display = 'none';
-            } else { // Más de 8 minutos (rojo)
+            } else { // después de 4 min (rojo)
                 luzVerde.style.display = 'none';
                 luzRoja.style.display = 'block';
             }
 
-            if (tiempoFlujo >= segundosMax) { // Reinicio automático a 10 min
+            if (tiempoFlujo >= segundosMax) { // Reinicio a los 5 minutos
                 reiniciarTodo();
             }
         }, 1000);
@@ -192,10 +198,10 @@ document.addEventListener('DOMContentLoaded', function () {
         inputConsumo.value = '0.00';
         barraAgua.style.width = '0%';
         barraAgua.style.backgroundColor = '#4da6ff';
+        estadoActual.textContent = "Estado: Sin flujo";
         actualizarGrafica();
         luzVerde.style.display = 'none';
         luzRoja.style.display = 'none';
-        estadoActual.textContent = "Estado: Sin flujo";
     }
 
     setInterval(actualizarDesdeServidor, 5000);
