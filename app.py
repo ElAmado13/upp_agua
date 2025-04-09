@@ -1,8 +1,18 @@
 from flask import Flask, request, jsonify, render_template
 import pymysql
-import traceback  # Para imprimir rastreo completo de errores
+import traceback
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
+
+# Configuración de conexión a la base de datos
+DB_CONFIG = {
+    'host': "162.241.62.217",
+    'user': "arnetcom_uriel",
+    'password': "Uriel$2024.Agu4",
+    'database': "arnetcom_agua",
+    'port': 3306
+}
 
 @app.route('/')
 def index():
@@ -11,78 +21,57 @@ def index():
 @app.route('/guardar_datos', methods=['POST'])
 def guardar_datos():
     try:
-        print('Contenido del tipo de solicitud:', request.content_type)
-        
-        # Verificar si el tipo de contenido es JSON
         if request.content_type != 'application/json':
             return jsonify({'error': 'Tipo de contenido no soportado'}), 415
 
         data = request.get_json()
-        print('Datos recibidos:', data)  # Imprimir los datos recibidos para depuración
-        
         consumo = data.get('consumo')
-        if not consumo:
+        if consumo is None:
             return jsonify({'error': 'El campo consumo está vacío'}), 400
 
-        # Lógica para verificar si el consumo excede el límite de 40 litros
-        flujo = 1 if float(consumo) > 40 else 0  # 1 para rojo (fuga), 0 para verde
+        flujo = 1 if float(consumo) > 40 else 0  # 1 para fuga, 0 consumo adecuado
 
-        # Conectar a la base de datos
-        try:
-            conexion = pymysql.connect(
-                host="162.241.62.217",
-                user="arnetcom_uriel",
-                password="Uriel$2024.Agu4",
-                #user="arnetcom",
-                #password="O6r#]IYdr0x06G",
-                database="arnetcom_agua",
-                port=3306  
-            )
-            cursor = conexion.cursor()
-        except pymysql.MySQLError as e:
-            print('Error en la conexión a la base de datos:', e)
-            return jsonify({'error': 'Error en la conexión a la base de datos'}), 500
+        conexion = pymysql.connect(**DB_CONFIG)
+        cursor = conexion.cursor()
 
-        # Insertar datos en la base de datos
         sql = "INSERT INTO registros (fecha, lectura, flujo) VALUES (NOW(), %s, %s)"
         valores = (consumo, flujo)
 
-        try:
-            cursor.execute(sql, valores)
-            conexion.commit()
-        except pymysql.MySQLError as e:
-            print('Error al ejecutar la consulta SQL:', e)
-            return jsonify({'error': 'Error al guardar los datos en la base de datos'}), 500
-        finally:
-            conexion.close()
+        cursor.execute(sql, valores)
+        conexion.commit()
+        conexion.close()
 
-        # Devolver una respuesta en JSON para la interfaz
         return jsonify({'mensaje': 'Datos guardados correctamente', 'flujo': flujo})
 
     except Exception as e:
         print('Error general:', str(e))
-        print(traceback.format_exc())  # Imprimir rastreo completo del error
+        print(traceback.format_exc())
         return jsonify({'error': 'Error interno del servidor'}), 500
+
 @app.route('/ultimos_datos', methods=['GET'])
 def ultimos_datos():
     try:
-        conexion = pymysql.connect(
-            host="162.241.62.217",
-            user="arnetcom_uriel",
-            password="Uriel$2024.Agu4",
-            database="arnetcom_agua",
-            port=3306  
-        )
+        conexion = pymysql.connect(**DB_CONFIG)
         cursor = conexion.cursor()
-        sql = "SELECT lectura FROM registros ORDER BY fecha DESC LIMIT 20"
-        cursor.execute(sql)
+
+        ahora = datetime.utcnow() - timedelta(hours=5)  # Hora México
+        hace_5_segundos = ahora - timedelta(seconds=5)
+
+        sql = "SELECT lectura FROM registros WHERE fecha >= %s ORDER BY fecha DESC"
+        cursor.execute(sql, (hace_5_segundos,))
         resultados = cursor.fetchall()
         conexion.close()
 
-        datos = [float(r[0]) for r in resultados[::-1]]
-        return jsonify({'lecturas': datos})
+        if resultados:
+            lecturas = [float(r[0]) for r in resultados]
+        else:
+            lecturas = [0]
+
+        return jsonify({"lecturas": lecturas})
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print('Error en ultimos_datos:', str(e))
+        return jsonify({'error': 'Error interno del servidor en ultimos_datos'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

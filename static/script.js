@@ -4,16 +4,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const luzVerde = document.getElementById('verde');
     const luzRoja = document.getElementById('roja');
     const estadoActual = document.getElementById('estado-actual');
+    const mensajeEstado = document.getElementById('mensaje-estado');
+    const cronometroLlenado = document.getElementById('cronometro-llenado');
     const ctx = document.getElementById('grafica-consumo').getContext('2d');
 
     let datosPulsos = [];
     let flujoActivo = false;
+    let flujoCongelado = false;
     let tiempoFlujo = 0;
-    let timer;
+    let timerFlujo = null;
+    let timerConsulta = null;
     let cerosConsecutivos = 0;
     let ultimosDatos = [];
-    const minutosMax = 5; // 5 minutos total
-    const segundosMax = minutosMax * 60; // 300 segundos
+    const minutosMax = 5;
+    const segundosMax = minutosMax * 60;
 
     const graficaConsumo = new Chart(ctx, {
         type: 'line',
@@ -71,6 +75,30 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    function startTimer() {
+        if (!timerFlujo) {
+            tiempoFlujo = 0;
+            timerFlujo = setInterval(() => {
+                tiempoFlujo++;
+                const minutos = Math.floor(tiempoFlujo / 60);
+                const segundos = tiempoFlujo % 60;
+                cronometroLlenado.innerText = `Tiempo de llenado: ${minutos} min ${segundos} s`;
+            }, 1000);
+        }
+    }
+
+    function stopTimer() {
+        if (timerFlujo) {
+            clearInterval(timerFlujo);
+            timerFlujo = null;
+        }
+    }
+
+    function resetTimer() {
+        tiempoFlujo = 0;
+        cronometroLlenado.innerText = '';
+    }
+
     function calcularPromediosAcumuladosBloques(datos) {
         const bloqueTamano = 3;
         let promedios = [];
@@ -101,7 +129,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const promedios = calcularPromediosAcumuladosBloques(datosPulsos);
 
-        // Expandir los promedios para unir los puntos
         let datosPromedioExpandido = [];
         let indiceBloque = 0;
 
@@ -119,6 +146,11 @@ document.addEventListener('DOMContentLoaded', function () {
         graficaConsumo.update();
     }
 
+    function getHoraMexico() {
+        const opciones = { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        return new Date().toLocaleString('es-MX', opciones);
+    }
+
     function actualizarDesdeServidor() {
         fetch('/ultimos_datos')
             .then(response => response.json())
@@ -126,12 +158,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (data.lecturas) {
                     const nuevasLecturas = data.lecturas;
 
+                    if (flujoCongelado) {
+                        if (nuevasLecturas.some(v => v !== 0)) {
+                            reiniciarTodo(true);
+                        }
+                        return;
+                    }
+
                     if (nuevasLecturas.every(v => v === 0)) {
                         cerosConsecutivos++;
-                        if (cerosConsecutivos >= 10) {
-                            reiniciarTodo();
+                        if (cerosConsecutivos >= 9) {
+                            congelarFlujo();
                         }
-                        return; // No actualiza datos si solo recibe ceros
+                        return;
                     }
 
                     if (JSON.stringify(nuevasLecturas) !== JSON.stringify(ultimosDatos)) {
@@ -140,8 +179,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         if (!flujoActivo) {
                             flujoActivo = true;
-                            tiempoFlujo = 0;
-                            iniciarTemporizador();
+                            startTimer();
                         }
 
                         datosPulsos = nuevasLecturas;
@@ -155,54 +193,41 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(error => console.error('Error al obtener lecturas:', error));
     }
 
-    function iniciarTemporizador() {
-        clearInterval(timer);
-        timer = setInterval(() => {
-            tiempoFlujo += 1;
+    function congelarFlujo() {
+        flujoCongelado = true;
+        flujoActivo = false;
+        stopTimer();
 
-            const porcentaje = Math.min((tiempoFlujo / segundosMax) * 100, 100);
-            barraAgua.style.width = `${porcentaje}%`;
+        const litrosTotales = datosPulsos.reduce((a, b) => a + b, 0) * 0.0017;
+        const horaDetencion = getHoraMexico();
+        const minutos = Math.floor(tiempoFlujo / 60);
+        const segundos = tiempoFlujo % 60;
 
-            if (porcentaje <= 60) {
-                barraAgua.style.backgroundColor = '#4da6ff'; // Azul
-                estadoActual.textContent = "Estado: Consumo Adecuado (Azul)";
-            } else if (porcentaje > 60 && porcentaje <= 80) {
-                barraAgua.style.backgroundColor = 'orange'; // Naranja
-                estadoActual.textContent = "Estado: Atención (Naranja)";
-            } else {
-                barraAgua.style.backgroundColor = 'red'; // Rojo
-                estadoActual.textContent = "Estado: Fuga Detectada (Rojo)";
-            }
+        mensajeEstado.innerText = `Flujo detenido a las ${horaDetencion}. Duración: ${minutos} min ${segundos} s`;
 
-            if (tiempoFlujo <= 240) { // 4 minutos (verde)
-                luzVerde.style.display = 'block';
-                luzRoja.style.display = 'none';
-            } else { // después de 4 min (rojo)
-                luzVerde.style.display = 'none';
-                luzRoja.style.display = 'block';
-            }
-
-            if (tiempoFlujo >= segundosMax) { // Reinicio a los 5 minutos
-                reiniciarTodo();
-            }
-        }, 1000);
+        // Enviar suma de litros
+        fetch('/guardar_datos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ consumo: litrosTotales })
+        })
+        .then(res => res.json())
+        .then(data => console.log('Datos enviados:', data))
+        .catch(err => console.error('Error al enviar:', err));
     }
 
-    function reiniciarTodo() {
-        flujoActivo = false;
-        clearInterval(timer);
+    function reiniciarTodo(mostrarMensajeInicio) {
+        flujoActivo = true;
+        flujoCongelado = false;
         datosPulsos = [];
         ultimosDatos = [];
         cerosConsecutivos = 0;
-        tiempoFlujo = 0;
+        resetTimer();
+        mensajeEstado.innerText = mostrarMensajeInicio ? "Nuevo flujo detectado." : "";
         inputConsumo.value = '0.00';
-        barraAgua.style.width = '0%';
-        barraAgua.style.backgroundColor = '#4da6ff';
-        estadoActual.textContent = "Estado: Sin flujo";
         actualizarGrafica();
-        luzVerde.style.display = 'none';
-        luzRoja.style.display = 'none';
+        startTimer();
     }
 
-    setInterval(actualizarDesdeServidor, 5000);
+    timerConsulta = setInterval(actualizarDesdeServidor, 5000);
 });
