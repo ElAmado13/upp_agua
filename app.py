@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 import pymysql
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -14,9 +14,30 @@ DB_CONFIG = {
     'port': 3306
 }
 
+# Buffer temporal
+pulso_buffer = []
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/recibir_pulsos', methods=['POST'])
+def recibir_pulsos():
+    global pulso_buffer
+    try:
+        data = request.get_json()
+        pulsos = data.get('pulsos')
+        if not pulsos:
+            return jsonify({'error': 'Lista vacía'}), 400
+        pulso_buffer = pulsos
+        return jsonify({'mensaje': 'Pulsos recibidos'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/ultimos_datos', methods=['GET'])
+def ultimos_datos():
+    global pulso_buffer
+    return jsonify({'lecturas': pulso_buffer})
 
 @app.route('/guardar_datos', methods=['POST'])
 def guardar_datos():
@@ -47,31 +68,6 @@ def guardar_datos():
         print('Error general:', str(e))
         print(traceback.format_exc())
         return jsonify({'error': 'Error interno del servidor'}), 500
-
-@app.route('/ultimos_datos', methods=['GET'])
-def ultimos_datos():
-    try:
-        conexion = pymysql.connect(**DB_CONFIG)
-        cursor = conexion.cursor()
-
-        ahora = datetime.utcnow() - timedelta(hours=5)  # Hora México
-        hace_5_segundos = ahora - timedelta(seconds=5)
-
-        sql = "SELECT lectura FROM registros WHERE fecha >= %s ORDER BY fecha DESC"
-        cursor.execute(sql, (hace_5_segundos,))
-        resultados = cursor.fetchall()
-        conexion.close()
-
-        if resultados:
-            lecturas = [float(r[0]) for r in resultados]
-        else:
-            lecturas = [0]
-
-        return jsonify({"lecturas": lecturas})
-
-    except Exception as e:
-        print('Error en ultimos_datos:', str(e))
-        return jsonify({'error': 'Error interno del servidor en ultimos_datos'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
