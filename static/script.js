@@ -1,9 +1,11 @@
+// script.js modificado para actualizar simulación de tubería en tiempo real
+// y cambiar el color de la barra según duración del flujo basado en pulsos acumulados
+
 let datosPulsos = [];
 let flujoActivo = false;
 let flujoCongelado = false;
 let tiempoFlujo = 0;
 let timerFlujo = null;
-let timerConsulta = null;
 let tiempoInactivo = 0;
 let cronometroLlenado = document.getElementById('cronometro-llenado');
 let inputConsumo = document.getElementById('input-consumo');
@@ -70,6 +72,8 @@ function reiniciarFlujo() {
     mensajeEstado.innerText = "Nuevo flujo detectado";
     inputConsumo.value = "0.00";
     barraAgua.style.width = "0%";
+    barraAgua.style.backgroundColor = "#4da6ff";
+    barraAgua.classList.remove("desbordando");
     graficaConsumo.data.labels = [];
     graficaConsumo.data.datasets[0].data = [];
     graficaConsumo.update();
@@ -77,21 +81,37 @@ function reiniciarFlujo() {
 }
 
 function actualizarGrafica(nuevosDatos) {
-    let nuevos = nuevosDatos.filter(v => v > 0);
+    if (!nuevosDatos || nuevosDatos.length === 0) return;
+
+    const nuevos = nuevosDatos.filter(v => v > 0);
     if (nuevos.length === 0) return;
 
-    datosPulsos = nuevos;
-    tiempoInactivo = 0;
     if (!flujoActivo) reiniciarFlujo();
 
-    let litros = nuevos.reduce((a, b) => a + b, 0) * 0.0025;
+    datosPulsos = datosPulsos.concat(nuevos);
+    tiempoInactivo = 0;
+
+    const litros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
     inputConsumo.value = litros.toFixed(2);
 
-    let porcentaje = Math.min(100, litros * 10);
+    const tiempoAcumulado = datosPulsos.length * 0.256; // segundos
+    const porcentaje = Math.min(100, (tiempoAcumulado / 300) * 100); // con base a 5 min (300s)
     barraAgua.style.width = `${porcentaje}%`;
 
-    graficaConsumo.data.labels = nuevos.map((_, i) => (i * 0.256).toFixed(1));
-    graficaConsumo.data.datasets[0].data = nuevos;
+    // Color dinámico de la barra
+    if (tiempoAcumulado >= 300) {
+        barraAgua.style.backgroundColor = "red";
+        barraAgua.classList.add("desbordando");
+    } else if (tiempoAcumulado >= 240) {
+        barraAgua.style.backgroundColor = "orange";
+        barraAgua.classList.remove("desbordando");
+    } else {
+        barraAgua.style.backgroundColor = "#4da6ff";
+        barraAgua.classList.remove("desbordando");
+    }
+
+    graficaConsumo.data.labels = datosPulsos.map((_, i) => (i * 0.256).toFixed(1));
+    graficaConsumo.data.datasets[0].data = datosPulsos;
     graficaConsumo.update();
 }
 
@@ -101,7 +121,7 @@ function enviarResultadoFinal() {
     flujoCongelado = true;
     mensajeEstado.innerText = "Flujo detenido. Enviando...";
 
-    let totalLitros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
+    const totalLitros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
     fetch('/guardar_datos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,7 +138,7 @@ function obtenerDatos() {
     fetch('/ultimos_datos')
         .then(res => res.json())
         .then(data => {
-            if (data.lecturas && data.lecturas.some(v => v > 0)) {
+            if (data.lecturas && data.lecturas.length > 0) {
                 actualizarGrafica(data.lecturas);
             }
         })
