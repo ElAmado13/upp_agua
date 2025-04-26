@@ -68,6 +68,13 @@ def guardar_datos():
         print('Error general:', str(e))
         print(traceback.format_exc())
         return jsonify({'error': 'Error interno del servidor'}), 500
+    
+@app.route('/resetear_buffer', methods=['POST'])
+def resetear_buffer():
+    global pulso_buffer
+    pulso_buffer = []
+    return jsonify({'mensaje': 'Buffer reseteado'})
+
 
 if __name__ == '__main__':
     app.run(debug=True)

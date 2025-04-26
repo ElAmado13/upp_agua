@@ -51,7 +51,7 @@ function startTimer() {
             let sec = tiempoFlujo % 60;
             cronometroLlenado.innerText = `Tiempo: ${min} min ${sec} s`;
 
-            if (tiempoInactivo >= 20 && !datoYaGuardado) {
+            if (tiempoInactivo >= 30 && !datoYaGuardado) {
                 enviarResultadoFinal();
                 datoYaGuardado = true;
             }
@@ -69,21 +69,23 @@ function reiniciarFlujo() {
     tiempoInactivo = 0;
     tiempoFlujo = 0;
     flujoCongelado = false;
-    flujoActivo = true;
+    flujoActivo = false;
     datoYaGuardado = false;
 
-    mensajeEstado.innerText = "Nuevo flujo detectado";
+    mensajeEstado.innerText = "...";
     inputConsumo.value = "0.00";
     barraAgua.style.width = "0%";
     barraAgua.style.backgroundColor = "#4da6ff";
     barraAgua.classList.remove("desbordando");
 
+    document.getElementById('verde').style.display = "none";
+    document.getElementById('roja').style.display = "none";
+
     graficaConsumo.data.labels = [];
     graficaConsumo.data.datasets[0].data = [];
     graficaConsumo.update();
-
-    startTimer();
 }
+
 
 function actualizarGrafica(nuevosDatos) {
     if (!nuevosDatos || nuevosDatos.length === 0) return;
@@ -97,7 +99,7 @@ function actualizarGrafica(nuevosDatos) {
     datosPulsos = datosPulsos.concat(nuevos);
     tiempoInactivo = 0;
 
-    const litros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
+    const litros = datosPulsos.reduce((a, b) => a + b, 0) * 1.25;
     inputConsumo.value = litros.toFixed(2);
 
     const tiempoAcumuladoSeg = datosPulsos.length * 1.25;
@@ -128,7 +130,11 @@ function enviarResultadoFinal() {
     mensajeEstado.innerText = "Flujo detenido. Enviando...";
 
     const totalLitros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
-    if (totalLitros <= 0) return;
+    if (totalLitros <= 0) {
+        resetearBuffer();
+        reiniciarFlujo();
+        return;
+    }
 
     fetch('/guardar_datos', {
         method: 'POST',
@@ -138,9 +144,27 @@ function enviarResultadoFinal() {
     .then(res => res.json())
     .then(resp => {
         mensajeEstado.innerText = "Datos enviados. Esperando nuevo flujo...";
+        resetearBuffer();
+        reiniciarFlujo();
     })
-    .catch(err => console.error('Error al enviar:', err));
+    .catch(err => {
+        console.error('Error al enviar:', err);
+        resetearBuffer();
+        reiniciarFlujo();
+    });
 }
+
+function resetearBuffer() {
+    fetch('/resetear_buffer', {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log('Buffer reseteado:', data.mensaje);
+    })
+    .catch(err => console.error('Error al resetear buffer:', err));
+}
+
 
 function obtenerDatos() {
     fetch('/ultimos_datos')
@@ -154,5 +178,5 @@ function obtenerDatos() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    setInterval(obtenerDatos, 1000);
+    setInterval(obtenerDatos, 100);
 });
