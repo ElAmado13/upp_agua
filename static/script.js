@@ -1,4 +1,4 @@
-let datosPulsos = [];
+let RegistroL = [];
 let flujoActivo = false;
 let flujoCongelado = false;
 let tiempoFlujo = 0;
@@ -50,7 +50,6 @@ function startTimer() {
 
             // Si pasan 30 segundos sin nuevos datos después de un 0, congelar
             if (tiempoInactivo >= 30 && !datoYaGuardado) {
-                enviarResultadoFinal();
                 congelarSistema();
             }
         }, 1000);
@@ -63,7 +62,7 @@ function stopTimer() {
 }
 
 function reiniciarFlujo() {
-    datosPulsos = [];
+    RegistroL = [];
     tiempoInactivo = 0;
     tiempoFlujo = 0;
     flujoCongelado = false;
@@ -76,7 +75,7 @@ function reiniciarFlujo() {
     barraAgua.style.width = "0%";
     barraAgua.style.backgroundColor = "#4da6ff";
     barraAgua.classList.remove("desbordando");
-    body.style.backgroundColor = "#e0f7fa"; // color normal
+    body.style.backgroundColor = "#e0f7fa";
 
     graficaConsumo.data.labels = [];
     graficaConsumo.data.datasets[0].data = [];
@@ -87,13 +86,13 @@ function congelarSistema() {
     stopTimer();
     flujoCongelado = true;
     congelado = true;
-    body.style.backgroundColor = "#cccccc"; // Cambiar fondo a gris
+    body.style.backgroundColor = "#cccccc"; // Fondo gris
     mensajeEstado.innerText = "Sistema en espera. Sin datos nuevos.";
 }
 
 function actualizarGrafica(nuevosDatos) {
     if (!nuevosDatos || nuevosDatos.length === 0) return;
-    
+
     const nuevos = nuevosDatos.filter(v => v >= 0);
     if (nuevos.length === 0) return;
 
@@ -102,20 +101,24 @@ function actualizarGrafica(nuevosDatos) {
     if (ultimoValor === 0 && flujoActivo) {
         flujoActivo = false;
         tiempoInactivo = 0; // empezar a contar inactividad
+
+        // ✅ Cuando llega el 0, calcular y mandar a la BD
+        calcularYEnviarRegistroL();
     } else if (ultimoValor > 0) {
         if (congelado) reiniciarFlujo();
-        if (!flujoActivo) reiniciarFlujo();
-        flujoActivo = true;
-        flujoCongelado = false;
+        if (!flujoActivo) {
+            flujoActivo = true;
+            startTimer();
+        }
+        RegistroL.push(ultimoValor); // ✅ Agregar cada valor recibido mayor a 0
     }
 
-    datosPulsos = nuevos;
     tiempoInactivo = 0;
 
-    const litros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
+    const litros = RegistroL.reduce((a, b) => a + b, 0) * 0.0025;
     inputConsumo.value = litros.toFixed(2);
 
-    const tiempoAcumuladoSeg = datosPulsos.length * 1.25;
+    const tiempoAcumuladoSeg = RegistroL.length * 1.25;
     const tiempoMin = tiempoAcumuladoSeg / 60;
     const porcentaje = Math.min(100, (tiempoMin / 5) * 100);
     barraAgua.style.width = `${porcentaje}%`;
@@ -131,30 +134,31 @@ function actualizarGrafica(nuevosDatos) {
         barraAgua.classList.remove("desbordando");
     }
 
-    graficaConsumo.data.labels = datosPulsos.map((_, i) => (i * 1.25).toFixed(1));
-    graficaConsumo.data.datasets[0].data = datosPulsos;
+    graficaConsumo.data.labels = RegistroL.map((_, i) => (i * 1.25).toFixed(1));
+    graficaConsumo.data.datasets[0].data = RegistroL;
     graficaConsumo.update();
 }
 
-function enviarResultadoFinal() {
-    stopTimer();
-    flujoActivo = false;
-    flujoCongelado = true;
-    datoYaGuardado = true;
+function calcularYEnviarRegistroL() {
+    if (RegistroL.length === 0) return;
 
-    const totalLitros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0017; // Cambio a 0.0017
-    if (totalLitros <= 0) return;
+    const sumaTotal = RegistroL.reduce((a, b) => a + b, 0);
+    const consumo = sumaTotal * 0.017; // ✅ Multiplicación por 0.017 exacta como pediste
 
     fetch('/guardar_datos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consumo: totalLitros.toFixed(2) })
+        body: JSON.stringify({ consumo: consumo.toFixed(2) })
     })
     .then(res => res.json())
     .then(resp => {
-        console.log('Datos guardados automáticamente:', resp);
+        console.log('Consumo registrado en BD:', consumo.toFixed(2));
+        mensajeEstado.innerText = `Consumo registrado: ${consumo.toFixed(2)} litros`;
     })
-    .catch(err => console.error('Error al guardar datos:', err));
+    .catch(err => console.error('Error al guardar consumo:', err));
+
+    datoYaGuardado = true;
+    RegistroL = []; // ✅ Limpiar para siguiente flujo
 }
 
 function obtenerDatos() {
@@ -169,5 +173,5 @@ function obtenerDatos() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    setInterval(obtenerDatos, 100); // 100 ms
+    setInterval(obtenerDatos, 100); // Cada 100 ms
 });
