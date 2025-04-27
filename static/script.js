@@ -1,5 +1,3 @@
-// script.js final funcional para simulación y registro en tiempo real
-
 let datosPulsos = [];
 let flujoActivo = false;
 let flujoCongelado = false;
@@ -7,11 +5,14 @@ let tiempoFlujo = 0;
 let timerFlujo = null;
 let tiempoInactivo = 0;
 let datoYaGuardado = false;
+let congelado = false;
 
 const cronometroLlenado = document.getElementById('cronometro-llenado');
 const inputConsumo = document.getElementById('input-consumo');
 const barraAgua = document.getElementById('barra-agua');
 const mensajeEstado = document.getElementById('mensaje-estado');
+const body = document.body;
+
 const ctx = document.getElementById('grafica-consumo').getContext('2d');
 
 let graficaConsumo = new Chart(ctx, {
@@ -30,13 +31,8 @@ let graficaConsumo = new Chart(ctx, {
     options: {
         responsive: true,
         scales: {
-            x: {
-                title: { display: true, text: 'Tiempo (s)' }
-            },
-            y: {
-                title: { display: true, text: 'Pulsos' },
-                beginAtZero: true
-            }
+            x: { title: { display: true, text: 'Tiempo (s)' } },
+            y: { title: { display: true, text: 'Pulsos' }, beginAtZero: true }
         }
     }
 });
@@ -47,13 +43,15 @@ function startTimer() {
         timerFlujo = setInterval(() => {
             tiempoFlujo++;
             tiempoInactivo++;
+
             let min = Math.floor(tiempoFlujo / 60);
             let sec = tiempoFlujo % 60;
             cronometroLlenado.innerText = `Tiempo: ${min} min ${sec} s`;
 
+            // Si pasan 30 segundos sin nuevos datos después de un 0, congelar
             if (tiempoInactivo >= 30 && !datoYaGuardado) {
                 enviarResultadoFinal();
-                datoYaGuardado = true;
+                congelarSistema();
             }
         }, 1000);
     }
@@ -71,35 +69,50 @@ function reiniciarFlujo() {
     flujoCongelado = false;
     flujoActivo = false;
     datoYaGuardado = false;
+    congelado = false;
 
-    mensajeEstado.innerText = "...";
+    mensajeEstado.innerText = "Esperando datos...";
     inputConsumo.value = "0.00";
     barraAgua.style.width = "0%";
     barraAgua.style.backgroundColor = "#4da6ff";
     barraAgua.classList.remove("desbordando");
-
-    document.getElementById('verde').style.display = "none";
-    document.getElementById('roja').style.display = "none";
+    body.style.backgroundColor = "#e0f7fa"; // color normal
 
     graficaConsumo.data.labels = [];
     graficaConsumo.data.datasets[0].data = [];
     graficaConsumo.update();
 }
 
+function congelarSistema() {
+    stopTimer();
+    flujoCongelado = true;
+    congelado = true;
+    body.style.backgroundColor = "#cccccc"; // Cambiar fondo a gris
+    mensajeEstado.innerText = "Sistema en espera. Sin datos nuevos.";
+}
 
 function actualizarGrafica(nuevosDatos) {
     if (!nuevosDatos || nuevosDatos.length === 0) return;
-    const nuevos = nuevosDatos.filter(v => v > 0);
+    
+    const nuevos = nuevosDatos.filter(v => v >= 0);
     if (nuevos.length === 0) return;
 
-    if (flujoCongelado) reiniciarFlujo();
+    const ultimoValor = nuevos[nuevos.length - 1];
 
-    if (!flujoActivo) reiniciarFlujo();
+    if (ultimoValor === 0 && flujoActivo) {
+        flujoActivo = false;
+        tiempoInactivo = 0; // empezar a contar inactividad
+    } else if (ultimoValor > 0) {
+        if (congelado) reiniciarFlujo();
+        if (!flujoActivo) reiniciarFlujo();
+        flujoActivo = true;
+        flujoCongelado = false;
+    }
 
-    datosPulsos = datosPulsos.concat(nuevos);
+    datosPulsos = nuevos;
     tiempoInactivo = 0;
 
-    const litros = datosPulsos.reduce((a, b) => a + b, 0) * 1.25;
+    const litros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
     inputConsumo.value = litros.toFixed(2);
 
     const tiempoAcumuladoSeg = datosPulsos.length * 1.25;
@@ -127,14 +140,10 @@ function enviarResultadoFinal() {
     stopTimer();
     flujoActivo = false;
     flujoCongelado = true;
-    mensajeEstado.innerText = "Flujo detenido. Enviando...";
+    datoYaGuardado = true;
 
-    const totalLitros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0025;
-    if (totalLitros <= 0) {
-        resetearBuffer();
-        reiniciarFlujo();
-        return;
-    }
+    const totalLitros = datosPulsos.reduce((a, b) => a + b, 0) * 0.0017; // Cambio a 0.0017
+    if (totalLitros <= 0) return;
 
     fetch('/guardar_datos', {
         method: 'POST',
@@ -143,34 +152,16 @@ function enviarResultadoFinal() {
     })
     .then(res => res.json())
     .then(resp => {
-        mensajeEstado.innerText = "Datos enviados. Esperando nuevo flujo...";
-        resetearBuffer();
-        reiniciarFlujo();
+        console.log('Datos guardados automáticamente:', resp);
     })
-    .catch(err => {
-        console.error('Error al enviar:', err);
-        resetearBuffer();
-        reiniciarFlujo();
-    });
+    .catch(err => console.error('Error al guardar datos:', err));
 }
-
-function resetearBuffer() {
-    fetch('/resetear_buffer', {
-        method: 'POST'
-    })
-    .then(res => res.json())
-    .then(data => {
-        console.log('Buffer reseteado:', data.mensaje);
-    })
-    .catch(err => console.error('Error al resetear buffer:', err));
-}
-
 
 function obtenerDatos() {
     fetch('/ultimos_datos')
         .then(res => res.json())
         .then(data => {
-            if (data.lecturas && data.lecturas.length > 0) {
+            if (data.lecturas) {
                 actualizarGrafica(data.lecturas);
             }
         })
@@ -178,5 +169,5 @@ function obtenerDatos() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    setInterval(obtenerDatos, 100);
+    setInterval(obtenerDatos, 100); // 100 ms
 });

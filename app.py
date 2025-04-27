@@ -5,7 +5,6 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Configuración de conexión a la base de datos
 DB_CONFIG = {
     'host': "162.241.62.217",
     'user': "arnetcom_uriel",
@@ -14,7 +13,7 @@ DB_CONFIG = {
     'port': 3306
 }
 
-# Buffer temporal
+# Buffer temporal para acumular pulsos
 pulso_buffer = []
 
 @app.route('/')
@@ -29,7 +28,9 @@ def recibir_pulsos():
         pulsos = data.get('pulsos')
         if not pulsos:
             return jsonify({'error': 'Lista vacía'}), 400
-        pulso_buffer = pulsos
+        
+        # ✅ En vez de sobrescribir, acumulamos
+        pulso_buffer.extend(pulsos)
         return jsonify({'mensaje': 'Pulsos recibidos'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -68,13 +69,12 @@ def guardar_datos():
         print('Error general:', str(e))
         print(traceback.format_exc())
         return jsonify({'error': 'Error interno del servidor'}), 500
-    
+
 @app.route('/resetear_buffer', methods=['POST'])
 def resetear_buffer():
     global pulso_buffer
     pulso_buffer = []
     return jsonify({'mensaje': 'Buffer reseteado'})
-
 
 if __name__ == '__main__':
     app.run(debug=True)
